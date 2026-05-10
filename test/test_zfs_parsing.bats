@@ -70,6 +70,21 @@ setup() {
     [ "$output" = "raidz1-0" ]
 }
 
+@test "find available spare from a pool's status text" {
+    # Stub zfs_pool_status_text so the helper reads our fixture.
+    zfs_pool_status_text() { cat "$FIXTURES/zpool_status_with_spare.txt"; }
+    run zfs_find_available_spare rpool
+    [ "$status" -eq 0 ]
+    [ "$output" = "/dev/disk/by-id/wwn-0x50000397dc901811" ]
+}
+
+@test "find available spare returns empty when no spares present" {
+    zfs_pool_status_text() { cat "$FIXTURES/zpool_status_healthy.txt"; }
+    run zfs_find_available_spare tank
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "redundancy floor: mirror -> 1, raidz1 -> 2, raidz2 -> 3" {
     run zfs_vdev_min_after_remove mirror-0
     [ "$output" = "1" ]

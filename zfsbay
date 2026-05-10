@@ -53,7 +53,8 @@ Subcommands (คำสั่ง):
   bay <N> remove                      เตรียมถอดดิสก์ (offline+locate+spindown)
   bay <N> replace                     หลังเสียบดิสก์ใหม่: import + zpool replace
   bay <N> join pool <pool> [as <m>]   เพิ่มดิสก์ใหม่เข้า pool (mirror/spare/replace)
-  check sync [bay <N>]                ดูความคืบหน้า resilver
+  bay <N> swap-to-spare [--watch]     ใช้ hot spare แทน bay (resilver ในที่ pool ใช้งานได้ปกติ)
+  check sync [bay <N>] [--watch]      ดูความคืบหน้า resilver (--watch = refresh จนเสร็จ)
   locate <N> [on|off]                 เปิด/ปิดไฟ LED (ค่าเริ่มต้น on)
   version                             พิมพ์เวอร์ชัน
   help [<subcommand>]                 ช่วยเหลือ
@@ -73,6 +74,7 @@ Global flags:
   --force-boot        permit operating on rpool/boot disk
   --clear-foreign     auto-clear PERC foreign config
   --delete-vd         on remove, also delete the single-disk RAID0 VD
+  --watch (--wait)    block and refresh progress until resilver completes
 EOF
 }
 
@@ -84,12 +86,19 @@ zfsbay bay status [<N>]
 zfsbay bay <N> remove [--force] [--delete-vd]
 zfsbay bay <N> replace [--clear-foreign] [--force]
 zfsbay bay <N> join pool <poolname> [as <mode>]
+zfsbay bay <N> swap-to-spare [--watch] [--force]
 zfsbay locate <N> [on|off]
 
 mode:
   mirror=<existing-device-or-vdev>    attach to mirror
   spare                               add as pool-wide spare
   replace=<faulted-device-id>         in-place replace
+
+swap-to-spare:
+  Pick an AVAIL hot spare from the same pool and have ZFS resilver bay <N>'s
+  data onto it. After resilver, the spare permanently replaces the bay's
+  drive in its data vdev — the original physical disk in bay <N> is freed
+  for safe removal. Use --watch to block until resilver finishes.
 EOF
             ;;
         pool)  echo "zfsbay pool status [<name>]" ;;
@@ -102,6 +111,7 @@ EOF
 declare -gA ZB_FLAGS=(
     [json]=0 [yes]=0 [dry_run]=0 [no_color]=0 [verbose]=0 [quiet]=0
     [refresh]=0 [force]=0 [force_boot]=0 [clear_foreign]=0 [delete_vd]=0
+    [watch]=0
 )
 declare -ga ZB_POSITIONAL=()
 # These globals are consumed inside lib/common.sh::apply_flag_state and the
@@ -127,6 +137,7 @@ parse_args() {
             --force-boot)    ZB_FLAGS[force_boot]=1 ;;
             --clear-foreign) ZB_FLAGS[clear_foreign]=1 ;;
             --delete-vd)     ZB_FLAGS[delete_vd]=1 ;;
+            --watch|--wait)  ZB_FLAGS[watch]=1 ;;
             --controller)    ZB_CONTROLLER="${2:?--controller needs value}"; shift ;;
             --controller=*)  ZB_CONTROLLER="${1#*=}" ;;
             --enclosure)     ZB_ENCLOSURE="${2:?--enclosure needs value}"; shift ;;
@@ -208,8 +219,9 @@ handle_bay_subcommand() {
     local n="$first"
     local verb="${2:-}"
     case "$verb" in
-        remove)  cmd_bay_remove  "$n" ;;
-        replace) cmd_bay_replace "$n" ;;
+        remove)         cmd_bay_remove  "$n" ;;
+        replace)        cmd_bay_replace "$n" ;;
+        swap-to-spare)  cmd_bay_swap_to_spare "$n" ;;
         join)
             # bay <N> join pool <poolname> [as <mode>]
             [[ "${3:-}" == "pool" ]] || die 2 "expected 'pool' after join"

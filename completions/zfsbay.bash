@@ -11,7 +11,7 @@ _zfsbay_complete() {
     }
 
     local subs="pool bay check locate version help"
-    local flags="--json --yes --dry-run --no-color --verbose --quiet --refresh --force --force-boot --clear-foreign --delete-vd --controller --enclosure --config"
+    local flags="--json --yes --dry-run --no-color --verbose --quiet --refresh --force --force-boot --clear-foreign --delete-vd --watch --wait --controller --enclosure --config"
 
     if (( cword == 1 )); then
         # shellcheck disable=SC2207
@@ -37,7 +37,7 @@ _zfsbay_complete() {
                 COMPREPLY=( $(compgen -W "status 0 1 2 3 4 5 6 7 8 9 10 11" -- "$cur") )
             elif (( cword == 3 )) && [[ "${words[2]}" != "status" ]]; then
                 # shellcheck disable=SC2207
-                COMPREPLY=( $(compgen -W "remove replace join" -- "$cur") )
+                COMPREPLY=( $(compgen -W "remove replace join swap-to-spare" -- "$cur") )
             elif (( cword == 4 )) && [[ "${words[3]}" = "join" ]]; then
                 # shellcheck disable=SC2207
                 COMPREPLY=( $(compgen -W "pool" -- "$cur") )

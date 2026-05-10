@@ -323,6 +323,114 @@ _bay_status_json() {
           '{controller:$c, enclosure:($e | if . == "" then null else tonumber? end), bays:$bays}'
 }
 
+# ---- bay swap-to-spare -----------------------------------------------------
+#
+# Purpose: substitute an in-pool drive with an AVAIL hot spare so the data
+# vdev keeps full redundancy while we plan a physical swap. After the
+# resilver finishes, the spare permanently replaces the bay's drive (zfs
+# auto-collapses the replacing-N vdev), and the original physical disk in
+# the bay is freed — `bay <N> remove` can then offline LEDs/spindown safely.
+
+cmd_bay_swap_to_spare() {
+    local input="$1"
+    check_deps 1
+    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
+    maps_load
+
+    if [[ -z "${MAP_PD_JSON[$key]:-}" ]]; then die 5 "ไม่พบ bay $key"; fi
+    local pool="${MAP_POOL[$key]:-}"
+    [[ -n "$pool" ]] || die 6 "bay $key ไม่ได้อยู่ใน ZFS pool — ไม่มีอะไรให้ swap"
+    local vdev="${MAP_VDEV[$key]:-}"
+    local old_dev="${MAP_BY_ID[$key]:-${MAP_KERNEL_DEV[$key]:-}}"
+    [[ -n "$old_dev" ]] || die 6 "bay $key หา device path ไม่เจอ"
+
+    # Active resilver lockout
+    local txt; txt="$(zfs_pool_status_text "$pool")"
+    local r; r="$(zfs_parse_resilver "$txt")"
+    local rip; rip="${r%%|*}"
+    if [[ "$rip" = "1" ]] && [[ "${ZB_FLAGS[force]}" != "1" ]]; then
+        die 6 "pool $pool กำลัง resilver อยู่ — รอจนเสร็จก่อน หรือใช้ --force"
+    fi
+
+    # Find an AVAIL spare in this pool
+    local spare_dev
+    spare_dev="$(zfs_find_available_spare "$pool")"
+    [[ -n "$spare_dev" ]] || die 6 "pool $pool ไม่มี hot spare ที่สถานะ AVAIL — เพิ่มก่อนด้วย: zfsbay bay <N> join pool $pool as spare"
+
+    log_info "swap-to-spare: bay=$key pool=$pool vdev=${vdev:--}"
+    log_info "  old   = $old_dev"
+    log_info "  spare = $spare_dev"
+
+    confirm "เริ่ม resilver: pool=$pool, แทน bay $key ด้วย spare?" || die 7 "ผู้ใช้ยกเลิก"
+
+    zfs_replace "$pool" "$old_dev" "$spare_dev" || die 6 "zpool replace ล้มเหลว"
+    log_info "✔ resilver เริ่มแล้ว — pool=$pool"
+
+    if [[ "${ZB_FLAGS[watch]:-0}" = "1" ]]; then
+        printf '\n'
+        _watch_resilver "$pool"
+        cat <<EOF
+
+${c_green}✔ resilver เสร็จแล้ว${c_reset} — bay $key พร้อมถอดได้ปลอดภัย
+   ขั้นถัดไป:
+     zfsbay bay $input remove
+     (ถอดดิสก์เก่า เสียบใหม่)
+     zfsbay bay $input replace
+     zfsbay bay $input join pool $pool as spare      # เติม spare ใหม่
+EOF
+    else
+        cat <<EOF
+
+${c_green}✔ resilver เริ่มแล้ว${c_reset}
+   ติดตามด้วย:  zfsbay check sync --watch
+   หรือ:        zfsbay check sync bay $input
+   เมื่อเสร็จ → bay $key พร้อมถอดด้วย: zfsbay bay $input remove
+EOF
+    fi
+}
+
+# _watch_resilver <pool> [interval-seconds]
+# Refreshes a one-line progress bar in place until the pool stops resilvering.
+# Falls back to one-line-per-update when stdout is not a TTY (e.g. piped to file).
+_watch_resilver() {
+    local pool="$1" interval="${2:-15}"
+    local has_tty=0
+    [[ -t 1 ]] && has_tty=1
+
+    while true; do
+        local txt; txt="$(zfs_pool_status_text "$pool")"
+        local r; r="$(zfs_parse_resilver "$txt")"
+        local rip rpct reta rscan rtot rrate
+        IFS='|' read -r rip rpct reta rscan rtot rrate <<< "$r"
+
+        if [[ "$rip" != "1" ]]; then
+            if [[ "$has_tty" = "1" ]]; then printf '\r\033[K'; fi
+            return 0
+        fi
+
+        local pct_int="${rpct%%.*}"
+        local bar; bar="$(progress_bar "${pct_int:-0}" 30)"
+        local sc tot eta
+        sc="$( [[ -n "$rscan" ]] && format_bytes "$rscan" || printf '?' )"
+        tot="$( [[ -n "$rtot"  ]] && format_bytes "$rtot"  || printf '?' )"
+        if [[ -n "$reta" ]]; then
+            eta="$(format_eta_seconds "$reta")"
+        else
+            eta="unknown"
+        fi
+
+        if [[ "$has_tty" = "1" ]]; then
+            printf '\r\033[K%s: %s %s%% — %s to go — %s / %s' \
+                "$pool" "$bar" "${rpct:-?}" "$eta" "$sc" "$tot"
+        else
+            printf '%s: %s %s%% — %s to go — %s / %s\n' \
+                "$pool" "$bar" "${rpct:-?}" "$eta" "$sc" "$tot"
+        fi
+
+        sleep "$interval"
+    done
+}
+
 # ---- check sync ------------------------------------------------------------
 
 cmd_check_sync() {
@@ -336,7 +444,40 @@ cmd_check_sync() {
         [[ -n "$target_pool" ]] || die 6 "bay $key ไม่ได้อยู่ใน ZFS pool"
     fi
     if [[ "$ZB_JSON" = "1" ]]; then _check_sync_json "$target_pool"; return; fi
+
+    # --watch loops until every relevant pool has finished resilvering.
+    if [[ "${ZB_FLAGS[watch]:-0}" = "1" ]]; then
+        _check_sync_watch "$target_pool"
+        return
+    fi
     _check_sync_human "$target_pool"
+}
+
+_check_sync_watch() {
+    local target="${1:-}"
+    while :; do
+        local any_active=0 pool
+        while IFS= read -r pool; do
+            [[ -n "$pool" ]] || continue
+            if [[ -n "$target" ]] && [[ "$pool" != "$target" ]]; then continue; fi
+            local r; r="$(zfs_parse_resilver "$(zfs_pool_status_text "$pool")")"
+            [[ "${r%%|*}" = "1" ]] && any_active=1
+        done < <(zfs_pool_names)
+
+        if [[ "$any_active" = "0" ]]; then
+            printf '%sno resilver in progress%s\n' "$c_green" "$c_reset"
+            return 0
+        fi
+
+        if [[ -n "$target" ]]; then
+            _watch_resilver "$target"
+            return 0
+        fi
+        # No specific bay/pool — render a snapshot then sleep
+        printf '\033[H\033[J' 2>/dev/null || true   # clear screen if TTY
+        _check_sync_human ""
+        sleep 15
+    done
 }
 
 _check_sync_human() {

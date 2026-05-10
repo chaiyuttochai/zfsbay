@@ -291,7 +291,44 @@ zfsbay bay 2 join pool tank as mirror=/dev/disk/by-id/wwn-0x5000c5006b1a4fb8
 zfsbay bay 2 join pool tank as replace=/dev/disk/by-id/wwn-0x5000c5006b1afff8/old
 ```
 
-### 3.6 `zfsbay check sync [bay <N>]`
+### 3.6 `zfsbay bay <N> swap-to-spare [--watch]`
+
+ใช้เมื่อต้องการเปลี่ยนดิสก์ที่ยังไม่เสีย (proactive replace) — ZFS resilver ข้อมูลจาก bay <N>
+ไปยัง hot spare ของ pool ขณะที่ pool ยังใช้งานได้ปกติ หลัง resilver เสร็จ:
+- spare กลายเป็นสมาชิกถาวรของ data vdev (ไม่ต้อง `zpool detach`)
+- ดิสก์เดิมใน bay <N> ถูกปลดจาก pool — ปลอดภัยที่จะถอด
+
+ขั้นตอนที่ทำให้:
+1. หา hot spare ที่สถานะ AVAIL ใน pool
+2. ตรวจ resilver lockout (ถ้ามี resilver อื่นอยู่ → refuse, --force ข้ามได้)
+3. `zpool replace <pool> <bay-N-device> <spare-device>`
+4. ถ้ามี `--watch` → block + refresh progress bar ทุก 15 วินาที จนเสร็จ
+
+```bash
+# ตัวอย่าง: ดิสก์ bay 2 endurance เหลือ 56% — ใช้ spare แทนก่อน
+zfsbay bay 2 swap-to-spare --watch
+# rpool: [############..................] 38.7% — 02:14:33 to go — 580G / 1.5T
+# (block จนกว่าจะเสร็จ)
+# ✔ resilver เสร็จแล้ว — bay 32:2 พร้อมถอดได้ปลอดภัย
+
+# จากนั้น
+zfsbay bay 2 remove
+# ถอดดิสก์เก่า เสียบใหม่
+zfsbay bay 2 replace
+zfsbay bay 2 join pool rpool as spare    # เติม spare ใหม่ทดแทนตัวที่เพิ่งใช้ไป
+```
+
+ถ้าไม่ใส่ `--watch` คำสั่งจะ trigger replace แล้วจบทันที — ติดตามด้วย:
+```bash
+zfsbay check sync --watch
+```
+
+⚠️ ต้องมี hot spare ใน pool ก่อน — ถ้าไม่มีจะปฏิเสธพร้อมแนะนำให้รัน:
+```bash
+zfsbay bay <N> join pool <pool> as spare
+```
+
+### 3.7 `zfsbay check sync [bay <N>] [--watch]`
 
 ```bash
 $ zfsbay check sync
@@ -300,11 +337,15 @@ rpool: no resilver
 
 $ zfsbay check sync bay 4
 tank: [######........................] 19.55% — 03:14:15 to go — 900G / 2.34T
+
+# refresh ทุก 15 วินาที จนกว่าจะเสร็จ
+$ zfsbay check sync --watch
+$ zfsbay check sync bay 4 --watch
 ```
 
 ใช้ดู progress ของ resilver ของ ZFS รวมทั้ง rebuild ของ PERC (กรณี VD)
 
-### 3.7 `zfsbay locate <N> [on|off]`
+### 3.8 `zfsbay locate <N> [on|off]`
 
 ```bash
 zfsbay locate 4              # = on
@@ -314,7 +355,7 @@ zfsbay locate 4 off
 
 ใช้ "หา bay" ก่อนถอดดิสก์ — ไม่จำเป็นใน workflow `remove` (เปิดให้อัตโนมัติ)
 
-### 3.8 Global flags
+### 3.9 Global flags
 
 | Flag | ใช้เมื่อ |
 |---|---|
@@ -332,6 +373,7 @@ zfsbay locate 4 off
 | `--force-boot` | ทำงานกับ rpool ได้ |
 | `--clear-foreign` | auto-clear foreign config |
 | `--delete-vd` | ตอน remove ลบ R0 VD ด้วย |
+| `--watch` (`--wait`) | ใน `swap-to-spare` หรือ `check sync` — block + refresh จนกว่า resilver จะเสร็จ |
 
 ---
 
@@ -376,6 +418,33 @@ zfsbay bay 4 replace
 
 # 6. ดู resilver
 zfsbay check sync bay 4
+```
+
+### 4.2.1 🔄 Proactive swap ผ่าน hot spare (ปลอดภัยที่สุด)
+
+ถ้า pool มี hot spare อยู่แล้ว — ใช้ `swap-to-spare` ดีกว่า `remove → replace`
+เพราะ pool คงเต็ม redundancy ตลอดเวลา (ไม่ผ่านสถานะ DEGRADED ตอนถอด):
+
+```bash
+# 1. ดู endurance — สมมติ bay 2 เหลือ 56%
+zfsbay bay status
+
+# 2. ตรวจว่า pool มี spare ที่ AVAIL
+zpool status rpool | grep -A 3 spares
+
+# 3. swap-to-spare + watch จนเสร็จ
+zfsbay bay 2 swap-to-spare --watch
+# rpool: [############..................] 38.7% — 02:14:33 to go — 580G / 1.5T
+# (block อยู่จนกว่าจะเสร็จ)
+# ✔ resilver เสร็จแล้ว — bay 32:2 พร้อมถอดได้ปลอดภัย
+
+# 4. ถอด/เสียบใหม่ทางกายภาพ
+zfsbay bay 2 remove          # offline + LED + spindown
+# (ถอดดิสก์เก่า เสียบใหม่)
+zfsbay bay 2 replace
+
+# 5. เติม spare ใหม่ทดแทนตัวที่เพิ่งถูกใช้ไป
+zfsbay bay 2 join pool rpool as spare
 ```
 
 ### 4.3 🚨 ดิสก์ตายกลางดึก — pool DEGRADED

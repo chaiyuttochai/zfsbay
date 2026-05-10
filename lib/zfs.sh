@@ -208,6 +208,23 @@ zfs_vdev_min_after_remove() {
 
 # ---- state-changing wrappers ----------------------------------------------
 
+# zfs_find_available_spare <pool>  -> echoes the device path of the first
+# AVAIL spare in the pool (empty if none). Spares are listed under a
+# top-level "spares:" block in `zpool status`, with state AVAIL or INUSE.
+zfs_find_available_spare() {
+    local pool="$1"
+    [[ -n "$pool" ]] || return 0
+    local txt; txt="$(zfs_pool_status_text "$pool")"
+    awk '
+        # `zpool status` output has a "spares" subheading (no colon) in the
+        # config block; fall out of it when we hit "errors:" or another top
+        # heading like "logs"/"cache"/"config:".
+        /^[[:space:]]*spares[[:space:]]*$/  { in_spares=1; next }
+        /^[[:space:]]*(errors:|config:)/    { in_spares=0 }
+        in_spares && $1 ~ /^\// && $2 == "AVAIL" { print $1; exit }
+    ' <<< "$txt"
+}
+
 zfs_offline() { run_cmd_state zpool offline "$1" "$2"; }
 zfs_online()  { run_cmd_state zpool online  "$1" "$2"; }
 zfs_replace() {
