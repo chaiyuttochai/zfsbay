@@ -404,9 +404,11 @@ _check_sync_json() {
 cmd_locate() {
     local input="${1:-}" mode="${2:-on}"
     [[ -n "$input" ]] || die 2 "locate: ต้องระบุ bay"
+    # check_deps must run BEFORE resolve_bay — resolve_bay falls back to
+    # autodetecting the enclosure via perccli, which needs PERCCLI_BIN set.
+    check_deps 1
     local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     local eid="${key%%:*}" slot="${key##*:}"
-    check_deps 1
     case "${mode,,}" in
         on)  perccli_locate_on  "$ZB_CONTROLLER" "$eid" "$slot"; log_info "locate ON: bay $key" ;;
         off) perccli_locate_off "$ZB_CONTROLLER" "$eid" "$slot"; log_info "locate OFF: bay $key" ;;
@@ -418,8 +420,8 @@ cmd_locate() {
 
 cmd_bay_remove() {
     local input="$1"
-    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     check_deps 1
+    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     maps_load
 
     if [[ -z "${MAP_PD_JSON[$key]:-}" ]]; then die 5 "ไม่พบ bay $key"; fi
@@ -499,8 +501,8 @@ EOF
 
 cmd_bay_replace() {
     local input="$1"
-    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     check_deps 1
+    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     maps_load
 
     if [[ -z "${MAP_PD_JSON[$key]:-}" ]]; then die 5 "ไม่พบ PD ใน bay $key — มีดิสก์เสียบจริงหรือไม่?"; fi
@@ -615,8 +617,8 @@ EOF
 cmd_bay_join() {
     local input="$1" pool="$2" mode="${3:-}"
     [[ -n "$pool" ]] || die 2 "ต้องระบุชื่อ pool"
-    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     check_deps 1
+    local key; key="$(resolve_bay "$input")" || die 2 "bay ไม่ถูกต้อง: $input"
     maps_load
 
     if [[ -z "${MAP_PD_JSON[$key]:-}" ]]; then die 5 "ไม่พบ PD ใน bay $key"; fi
