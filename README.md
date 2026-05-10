@@ -53,6 +53,16 @@ sudo ./install.sh
 
 หรือรันตรงจาก repo ก็ได้ (สำหรับ dev): `./zfsbay help`
 
+## เริ่มเร็ว — Playbooks สำหรับเคสจริง
+
+ดู [**SOLUTIONS.md**](SOLUTIONS.md) สำหรับ step-by-step ของ 3 เคสที่พบบ่อย — copy-paste ใช้บนหน้างานได้เลย:
+
+1. **[Check status & วิเคราะห์](SOLUTIONS.md#1-check-status--วิเคราะห์-ว่าควรเปลี่ยนเมื่อไหร่)** — รู้ว่า pool ไหน/bay ไหนต้องสนใจ + เกณฑ์ตัดสินใจ
+2. **[Proactive replace ผ่าน spare](SOLUTIONS.md#2-proactive-replace-โย้กไปใช้-spare-ก่อนดิสก์เสีย)** — ดิสก์ ENDUR ต่ำ ยังไม่เสีย แต่อยากเปลี่ยน
+3. **[After spare takeover — เติม spare ใหม่](SOLUTIONS.md#3-after-spare-takeover-เติม-spare-ใหม่--แทน-disk-ที่เพิ่งใช้)** — หลัง spare ถูกใช้ → เปลี่ยนดิสก์เก่า + restore spare
+
+ดู [MANUAL.md](MANUAL.md) สำหรับ reference ฉบับเต็ม
+
 ## คำสั่งย่อทั้งหมด
 
 | คำสั่ง | หน้าที่ |

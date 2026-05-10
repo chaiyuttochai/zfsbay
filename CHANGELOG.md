@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New: `SOLUTIONS.md` — task-oriented playbooks for the three real
+  field cases: check-status & analyze (which value to look at, when to
+  act), proactive swap-to-spare on a still-healthy bay, and the
+  after-takeover flow that physically replaces the freed drive and
+  refills the spare slot. README now links to it as the primary
+  on-site reference.
+
 - New: `bay <N> swap-to-spare [--watch]` — `zpool replace` the bay's drive
   with an AVAIL hot spare, optionally blocking with a refreshing progress
   bar until resilver completes. After resilver the spare is permanently the
