@@ -117,15 +117,17 @@ trap 'on_error $? $LINENO' ERR
 
 # run_cmd captures stdout, leaves stderr passthrough.
 # usage: out="$(run_cmd cmd args...)" || rc=$?
-# In dry-run mode prints the command to stderr and returns 0 with empty stdout.
+#
+# Read-only by contract — ALWAYS executes, even in dry-run mode. Read-only
+# queries (perccli show, zpool status, smartctl -a) populate the in-memory
+# state that the dry-run plan describes; if we skip them, planning itself
+# breaks (e.g. resolve_bay can't autodetect the enclosure). State-changing
+# commands must use run_cmd_state instead.
 run_cmd() {
-    if [[ "$ZB_DRY_RUN" = "1" ]] || [[ "$ZB_VERBOSE" = "1" ]]; then
+    if [[ "$ZB_VERBOSE" = "1" ]]; then
         printf '%s+ %s%s\n' "$c_dim" "$(_quote_cmd "$@")" "$c_reset" >&2
     fi
     _log_to_file "$(_log_ts) CMD   $(_quote_cmd "$@")"
-    if [[ "$ZB_DRY_RUN" = "1" ]]; then
-        return 0
-    fi
     "$@"
 }
 
