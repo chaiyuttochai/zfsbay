@@ -53,7 +53,8 @@ wait_for_device() {
 # Picks the right /dev/disk/by-id form to use when adding back to a pool.
 best_zfs_path() {
     local kdev="$1" key="$2"
-    local byid="${BYID_FOR_DEV[$kdev]:-}"
+    local byid=""
+    [[ -n "$kdev" ]] && byid="${BYID_FOR_DEV[$kdev]:-}"
     [[ -n "$byid" ]] || byid="${MAP_BY_ID[$key]:-}"
 
     # Honor PREFER_ZFS_PATH_FORM if a specific form is requested.

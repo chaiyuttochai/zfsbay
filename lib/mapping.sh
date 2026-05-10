@@ -185,7 +185,12 @@ maps_load() {
             dev="${DEV_BY_SERIAL[${MAP_SERIAL[$key]}]:-}"
         fi
         MAP_KERNEL_DEV[$key]="$dev"
-        MAP_BY_ID[$key]="${BYID_FOR_DEV[$dev]:-}"
+        # Bash refuses an empty associative-array subscript, so guard the lookup.
+        if [[ -n "$dev" ]]; then
+            MAP_BY_ID[$key]="${BYID_FOR_DEV[$dev]:-}"
+        else
+            MAP_BY_ID[$key]=""
+        fi
 
         MAP_POOL[$key]=""
         MAP_VDEV[$key]=""
