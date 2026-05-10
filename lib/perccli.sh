@@ -69,19 +69,48 @@ perccli_load_foreign() {
     fi
 }
 
-# perccli_pd_array — emit the PD array from cached JSON (or empty array).
-# Walks Controllers[].Response Data["Drive Information"] which is the standard schema
-# for `/cN/eall/sall show all J` on perccli64 7.2x firmware.
+# perccli_pd_array — emit a flat array of merged PD objects from cached JSON.
+#
+# perccli `show all J` puts each drive at a top-level key like:
+#   "Drive /c0/e252/s0":                       [ {basic table fields} ]
+#   "Drive /c0/e252/s0 - Detailed Information": { "... State": {...}, "... Device attributes": {WWN,SN,...} }
+#
+# We walk every "Drive /cN/eM/sK" entry, take the basic record, and merge in
+# every sub-object under the matching "- Detailed Information" so the result
+# carries WWN, SN, Media Error Count, Predictive Failure Count, etc.
+#
+# Falls back to the older "Drive Information" array form (perccli < 7.0 and our
+# legacy test fixtures) when the modern form returns nothing.
 perccli_pd_array() {
     [[ -n "$PERCCLI_PD_JSON" ]] || { printf '[]'; return; }
-    printf '%s' "$PERCCLI_PD_JSON" | jq -c '
+    local result
+    result="$(printf '%s' "$PERCCLI_PD_JSON" | jq -c '
         [ (.Controllers // [])[]
-          | (."Response Data" // {})
-          | to_entries[]
-          | select(.key | test("Drive Information"; "i"))
-          | .value[]
+          | (."Response Data" // {}) as $rd
+          | ($rd | to_entries[])
+          | select(.key | test("^Drive /c[0-9]+/e[0-9]+/s[0-9]+$"))
+          | .key as $bkey
+          | (.value[0] // {}) as $basic
+          | (
+              ($rd[$bkey + " - Detailed Information"] // {})
+              | [ .[] | select(type == "object") ]
+              | reduce .[] as $sub ({}; . + $sub)
+            ) as $detail
+          | ($detail + $basic)
         ]
-    '
+    ' 2>/dev/null || echo '[]')"
+    if [[ -z "$result" ]] || [[ "$result" = "[]" ]]; then
+        # Legacy "Drive Information" array form
+        result="$(printf '%s' "$PERCCLI_PD_JSON" | jq -c '
+            [ (.Controllers // [])[]
+              | (."Response Data" // {})
+              | to_entries[]
+              | select(.key | test("Drive Information"; "i"))
+              | .value[]?
+            ]
+        ' 2>/dev/null || echo '[]')"
+    fi
+    printf '%s' "$result"
 }
 
 # perccli_vd_array — array of VD info objects across all controllers.

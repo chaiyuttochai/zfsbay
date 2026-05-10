@@ -157,9 +157,11 @@ maps_load() {
         MAP_BAY_KEYS+=("$key")
         MAP_PD_JSON[$key]="$obj"
         MAP_DID[$key]="$(printf '%s' "$obj" | jq -r '.DID // empty')"
-        MAP_WWN[$key]="$(printf '%s' "$obj" | jq -r '.WWN // empty')"
-        MAP_SERIAL[$key]="$(printf '%s' "$obj" | jq -r '.SN // empty' | sed 's/[[:space:]]*$//')"
-        MAP_MODEL[$key]="$(printf '%s' "$obj" | jq -r '.Model // empty' | sed 's/[[:space:]]*$//')"
+        # WWN field name varies across perccli versions: WWN / NAA / "World Wide Name".
+        MAP_WWN[$key]="$(printf '%s' "$obj" | jq -r '.WWN // .NAA // ."World Wide Name" // empty')"
+        # SN often has trailing whitespace in detailed Device attributes.
+        MAP_SERIAL[$key]="$(printf '%s' "$obj" | jq -r '.SN // ."Serial Number" // empty' | sed 's/[[:space:]]*$//')"
+        MAP_MODEL[$key]="$(printf '%s' "$obj" | jq -r '.Model // ."Model Number" // empty' | sed 's/[[:space:]]*$//')"
         MAP_INTERFACE[$key]="$(printf '%s' "$obj" | jq -r '.Intf // empty')"
         MAP_MEDIA[$key]="$(printf '%s' "$obj" | jq -r '.Med // empty')"
         MAP_PERC_STATE[$key]="$(printf '%s' "$obj" | jq -r '.State // empty')"
