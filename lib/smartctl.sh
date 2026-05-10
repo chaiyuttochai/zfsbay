@@ -28,17 +28,31 @@ smart_megaraid_dev() {
     printf '%s' "$SMART_MEGARAID_DEV"
 }
 
+# Per-call wall-clock cap for smartctl. Set ZFSBAY_SMART_TIMEOUT in env to
+# override; 0 disables the cap. The default is conservative because smartctl
+# on a drive behind PERC can stall for tens of seconds when the disk is in
+# standby or the megaraid driver is queued.
+: "${ZFSBAY_SMART_TIMEOUT:=8}"
+
+_smart_with_timeout() {
+    if (( ZFSBAY_SMART_TIMEOUT > 0 )) && command -v timeout >/dev/null 2>&1; then
+        timeout --signal=TERM --kill-after=2 "${ZFSBAY_SMART_TIMEOUT}s" "$@" 2>/dev/null
+    else
+        "$@" 2>/dev/null
+    fi
+}
+
 # smart_run_megaraid <DID> [smartctl-args...] -> stdout
 # Tries SAT layered first (works for SATA SSDs behind PERC), then falls back to plain megaraid.
 smart_run_megaraid() {
     local did="$1"; shift
     local dev; dev="$(smart_megaraid_dev)"
     local out
-    out="$(smartctl "$@" -d "sat+megaraid,${did}" "$dev" 2>/dev/null || true)"
+    out="$(_smart_with_timeout smartctl "$@" -d "sat+megaraid,${did}" "$dev" || true)"
     if printf '%s' "$out" | grep -qE 'Permission denied|Unknown USB bridge|Unable to detect device type|Smartctl open device|^$'; then
-        out="$(smartctl "$@" -d "megaraid,${did}" "$dev" 2>/dev/null || true)"
+        out="$(_smart_with_timeout smartctl "$@" -d "megaraid,${did}" "$dev" || true)"
     elif [[ -z "$out" ]]; then
-        out="$(smartctl "$@" -d "megaraid,${did}" "$dev" 2>/dev/null || true)"
+        out="$(_smart_with_timeout smartctl "$@" -d "megaraid,${did}" "$dev" || true)"
     fi
     printf '%s' "$out"
 }
@@ -46,7 +60,7 @@ smart_run_megaraid() {
 # smart_run_native <devnode> [smartctl-args...] -> stdout
 smart_run_native() {
     local node="$1"; shift
-    smartctl "$@" "$node" 2>/dev/null || true
+    _smart_with_timeout smartctl "$@" "$node" || true
 }
 
 # smart_overall <text> -> "PASSED"|"FAILED"|"UNKNOWN"

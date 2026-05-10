@@ -75,6 +75,7 @@ Global flags:
   --clear-foreign     auto-clear PERC foreign config
   --delete-vd         on remove, also delete the single-disk RAID0 VD
   --watch (--wait)    block and refresh progress until resilver completes
+  --fast              skip SMART probing in `bay status` (instant table)
 EOF
 }
 
@@ -111,7 +112,7 @@ EOF
 declare -gA ZB_FLAGS=(
     [json]=0 [yes]=0 [dry_run]=0 [no_color]=0 [verbose]=0 [quiet]=0
     [refresh]=0 [force]=0 [force_boot]=0 [clear_foreign]=0 [delete_vd]=0
-    [watch]=0
+    [watch]=0 [fast]=0
 )
 declare -ga ZB_POSITIONAL=()
 # These globals are consumed inside lib/common.sh::apply_flag_state and the
@@ -138,6 +139,7 @@ parse_args() {
             --clear-foreign) ZB_FLAGS[clear_foreign]=1 ;;
             --delete-vd)     ZB_FLAGS[delete_vd]=1 ;;
             --watch|--wait)  ZB_FLAGS[watch]=1 ;;
+            --fast)          ZB_FLAGS[fast]=1 ;;
             --controller)    ZB_CONTROLLER="${2:?--controller needs value}"; shift ;;
             --controller=*)  ZB_CONTROLLER="${1#*=}" ;;
             --enclosure)     ZB_ENCLOSURE="${2:?--enclosure needs value}"; shift ;;

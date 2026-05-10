@@ -188,7 +188,12 @@ _emit_bay_row() {
     local used_b="${MAP_USED_BYTES[$key]:-}"
 
     local health="?" endurance="?"
-    if [[ -n "${MAP_DID[$key]:-}" ]]; then
+    if [[ "${ZB_FLAGS[fast]:-0}" = "1" ]]; then
+        # Fast mode: skip the per-drive SMART probe entirely. Render the
+        # static columns (bay/serial/device/state/pool) instantly even on
+        # boxes where smartctl stalls behind PERC.
+        :
+    elif [[ -n "${MAP_DID[$key]:-}" ]]; then
         local intf="${MAP_INTERFACE[$key]:-}" media="${MAP_MEDIA[$key]:-}"
         # Skip live SMART probes if we have no megaraid device (e.g. running on macOS dev box).
         if [[ -e /dev/bus/0 ]] || [[ -e /sys/class/scsi_generic ]]; then
