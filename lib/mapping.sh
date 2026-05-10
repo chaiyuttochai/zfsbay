@@ -253,10 +253,33 @@ _maps_attach_pool_info() {
             # Resolve symlink to underlying device.
             local resolved="$p"
             if [[ -L "$p" ]]; then resolved="$(readlink -f "$p" 2>/dev/null || echo "$p")"; fi
+            # Strip partition suffix to get whole-disk path. ZFS often puts
+            # different partitions of the same SSD into different vdevs
+            # (e.g. rpool: -part3 in raidz1-0, -part1 in mirror logs,
+            # -part2 in cache) — we still want to attribute the slot to its
+            # primary pool, so match against the whole disk too.
+            local resolved_disk="$resolved"
+            if [[ "$resolved_disk" =~ ^(/dev/sd[a-z]+)[0-9]+$ ]]; then
+                resolved_disk="${BASH_REMATCH[1]}"
+            elif [[ "$resolved_disk" =~ ^(/dev/nvme[0-9]+n[0-9]+)p[0-9]+$ ]]; then
+                resolved_disk="${BASH_REMATCH[1]}"
+            fi
             for key in "${MAP_BAY_KEYS[@]}"; do
+                # Skip if this bay already attributed to a pool — first match wins,
+                # which prefers earlier-listed vdevs (data vdev before logs/cache).
+                [[ -n "${MAP_POOL[$key]:-}" ]] && continue
                 local dev="${MAP_KERNEL_DEV[$key]}"
                 local byid="${MAP_BY_ID[$key]}"
-                if [[ -n "$dev"  && "$resolved" = "$dev" ]] || [[ -n "$byid" && "$p" = "$byid" ]] || [[ -n "$dev" && "$p" = "$dev" ]]; then
+                local matched=0
+                if [[ -n "$dev" ]]; then
+                    if [[ "$resolved" = "$dev" ]] || [[ "$resolved_disk" = "$dev" ]] || [[ "$p" = "$dev" ]]; then
+                        matched=1
+                    fi
+                fi
+                if [[ "$matched" = "0" ]] && [[ -n "$byid" ]] && [[ "$p" = "$byid" ]]; then
+                    matched=1
+                fi
+                if [[ "$matched" = "1" ]]; then
                     MAP_POOL[$key]="$pool"
                     MAP_VDEV[$key]="$v"
                     MAP_VDEV_STATE[$key]="$st"
