@@ -79,7 +79,17 @@ zpool version
 
 #### A. Dell PERCCLI (.deb พร้อมใช้ — แนะนำสำหรับ Proxmox 7/bullseye)
 
-Dell ทำ `.deb` มาให้พร้อมใน Linux package — ไม่ต้องแปลง alien
+Repo นี้ bundle PERCCLI v7.1623 (.deb) ไว้ใน [vendor/perccli/](vendor/perccli/) แล้ว — ติดตั้งจาก git pull ได้เลย:
+
+```bash
+cd /path/to/zfsbay
+sudo dpkg -i vendor/perccli/perccli_007.1623.0000.0000_all.deb
+
+ls /opt/MegaRAID/perccli/perccli64
+/opt/MegaRAID/perccli/perccli64 show
+```
+
+ถ้าต้องการเวอร์ชันใหม่กว่า (เช่นมี PERC H965/H975) ดาวน์โหลดจาก Dell:
 
 ```bash
 # 1. หา Service Tag
@@ -99,10 +109,6 @@ cd /tmp
 tar xzf PERCCLI_*_Linux.tar.gz
 cd PERCCLI_*_Linux/
 dpkg -i perccli_*_all.deb
-
-# 5. Verify
-ls /opt/MegaRAID/perccli/perccli64
-/opt/MegaRAID/perccli/perccli64 show
 ```
 
 #### B. hwraid Debian repo (สำหรับ Proxmox 8/bookworm — apt บรรทัดเดียว)
