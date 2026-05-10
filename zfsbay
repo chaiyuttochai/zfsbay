@@ -6,7 +6,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-ZFSBAY_VERSION="0.1.0"
+ZFSBAY_VERSION="0.2.0"
 
 # Locate the lib directory: dev mode (next to script) or installed (/usr/local/lib/zfsbay).
 _self="${BASH_SOURCE[0]}"
