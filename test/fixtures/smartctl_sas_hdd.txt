@@ -1,0 +1,32 @@
+smartctl 7.3 2022-02-28 r5338 [x86_64-linux-6.5.13-1-pve] (local build)
+Copyright (C) 2002-22, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+Vendor:                 SEAGATE
+Product:                ST4000NM0023
+Revision:               GS0F
+User Capacity:          4,000,787,030,016 bytes [4.00 TB]
+Logical block size:     512 bytes
+Rotation Rate:          7200 rpm
+Form Factor:            3.5 inches
+Serial number:          Z1Z1234
+Device type:            disk
+Transport protocol:     SAS (SPL-3)
+Local Time is:          Mon May 10 03:20:00 2026 UTC
+SMART support is:       Available - device has SMART capability.
+SMART support is:       Enabled
+
+=== START OF READ SMART DATA SECTION ===
+SMART Health Status: OK
+
+Current Drive Temperature:     32 C
+Drive Trip Temperature:        65 C
+
+Manufactured in week 13 of year 2017
+Specified cycle count over device lifetime:  10000
+Accumulated start-stop cycles:  43
+Elements in grown defect list: 0
+
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 32144.50
+  number of minutes until next internal SMART test = 30

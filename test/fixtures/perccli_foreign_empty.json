@@ -1,0 +1,12 @@
+{
+  "Controllers": [
+    {
+      "Command Status": {
+        "Controller": 0,
+        "Status": "Success",
+        "Description": "No Foreign Configuration Found."
+      },
+      "Response Data": {}
+    }
+  ]
+}

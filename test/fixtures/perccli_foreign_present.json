@@ -1,0 +1,19 @@
+{
+  "Controllers": [
+    {
+      "Command Status": {
+        "Controller": 0,
+        "Status": "Success",
+        "Description": "Show Foreign Configuration Succeeded."
+      },
+      "Response Data": {
+        "Foreign Drive Information": [
+          { "EID:Slt": "32:5", "DID": 12, "State": "Frgn", "Size": "1.819 TB",
+            "Intf": "SATA", "Med": "SSD", "Model": "Samsung_SSD_870_2TB",
+            "WWN": "5002538b00abcdef", "SN": "S5RUNS0M0000001Z" }
+        ],
+        "Foreign Configuration Detected": 1
+      }
+    }
+  ]
+}

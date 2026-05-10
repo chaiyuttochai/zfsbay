@@ -1,0 +1,18 @@
+  pool: tank
+ state: DEGRADED
+status: One or more devices has been taken offline by the administrator.
+	Sufficient replicas exist for the pool to continue functioning in a
+	degraded state.
+action: Online the device using 'zpool online' or replace the device with
+	'zpool replace'.
+  scan: none requested
+config:
+
+	NAME                                                  STATE     READ WRITE CKSUM
+	tank                                                  DEGRADED     0     0     0
+	  raidz1-0                                            DEGRADED     0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1a4fb8            ONLINE       0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1a5fb8            ONLINE       0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1afff8            FAULTED      0     0     0  too many errors
+
+errors: No known data errors

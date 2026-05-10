@@ -1,0 +1,20 @@
+  pool: tank
+ state: DEGRADED
+status: One or more devices is currently being resilvered. The pool will
+	continue to function, possibly in a degraded state.
+action: Wait for the resilver to complete.
+  scan: resilver in progress since Mon May 10 02:47:00 2026
+	1.23T scanned at 234M/s, 567G issued at 89M/s, 2.34T total
+	45.6G resilvered, 12.34% done, 03:14:15 to go
+config:
+
+	NAME                                                      STATE     READ WRITE CKSUM
+	tank                                                      DEGRADED     0     0     0
+	  raidz1-0                                                DEGRADED     0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1a4fb8                ONLINE       0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1a5fb8                ONLINE       0     0     0
+	    replacing-2                                           DEGRADED     0     0     0
+	      /dev/disk/by-id/wwn-0x5000c5006b1afff8/old          UNAVAIL      0     0     0
+	      /dev/disk/by-id/wwn-0x5000c5006b1aeee8              ONLINE       0     0     0  (resilvering)
+
+errors: No known data errors

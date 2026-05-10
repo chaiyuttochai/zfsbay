@@ -1,0 +1,20 @@
+{
+  "Controllers": [
+    {
+      "Command Status": {
+        "Controller": 0,
+        "Status": "Success"
+      },
+      "Response Data": {
+        "Virtual Drives": [
+          { "DG/VD": "0/0", "TYPE": "RAID0", "State": "Optl", "Size": "446.625 GB",
+            "Name": "vd0", "PDs": [ { "EID:Slt": "32:0" } ] },
+          { "DG/VD": "0/1", "TYPE": "RAID0", "State": "Optl", "Size": "446.625 GB",
+            "Name": "vd1", "PDs": [ { "EID:Slt": "32:1" } ] },
+          { "DG/VD": "1/3", "TYPE": "RAID0", "State": "Optl", "Size": "3.637 TB",
+            "Name": "vd3", "PDs": [ { "EID:Slt": "32:4" } ] }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "Controllers": [
+    {
+      "Command Status": { "Controller": 0, "Status": "Success" },
+      "Response Data": {
+        "Drive Information": [
+          { "EID:Slt": "32:0", "DID": 7, "State": "JBOD", "Size": "446.625 GB",
+            "Intf": "SATA", "Med": "SSD", "Model": "INTEL SSDSC2BB480H4",
+            "WWN": "55cd2e404b9a1234", "SN": "BTWA000A1234567A",
+            "Media Error Count": 0, "Other Error Count": 0, "Predictive Failure Count": 0 },
+          { "EID:Slt": "32:1", "DID": 8, "State": "JBOD", "Size": "446.625 GB",
+            "Intf": "SATA", "Med": "SSD", "Model": "SAMSUNG MZ7L3480HCHQ",
+            "WWN": "5002538b00000001", "SN": "S4YUNX0M123456A",
+            "Media Error Count": 0, "Other Error Count": 0, "Predictive Failure Count": 0 }
+        ]
+      }
+    }
+  ]
+}

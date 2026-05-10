@@ -1,0 +1,14 @@
+  pool: tank
+ state: DEGRADED
+  scan: resilver in progress since Sun May  9 14:00:00 2026
+	1.23T scanned out of 2.34T at 234M/s, 03:14:15 to go
+	45.6G resilvered, 52.30% done
+config:
+
+	NAME                                                      STATE     READ WRITE CKSUM
+	tank                                                      DEGRADED     0     0     0
+	  mirror-0                                                DEGRADED     0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1a4fb8                ONLINE       0     0     0
+	    /dev/disk/by-id/wwn-0x5000c5006b1aeee8                ONLINE       0     0     0  (resilvering)
+
+errors: No known data errors

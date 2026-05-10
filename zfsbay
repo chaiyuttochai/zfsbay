@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# zfsbay — operational CLI for ZFS pools on Dell PERC drive bays.
+# Audience: Proxmox VE 8.x on Dell PowerEdge with PERC H730P/H750/H755.
+# Single-host, stateless, no network calls.
+
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+ZFSBAY_VERSION="0.1.0"
+
+# Locate the lib directory: dev mode (next to script) or installed (/usr/local/lib/zfsbay).
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+    _link="$(readlink "$_self")"
+    if [[ "$_link" = /* ]]; then _self="$_link"; else _self="$(dirname "$_self")/$_link"; fi
+done
+_self_dir="$(cd "$(dirname "$_self")" && pwd)"
+
+if [[ -d "$_self_dir/lib" ]]; then
+    ZFSBAY_LIB="$_self_dir/lib"
+elif [[ -d "/usr/local/lib/zfsbay" ]]; then
+    ZFSBAY_LIB="/usr/local/lib/zfsbay"
+else
+    echo "zfsbay: cannot locate lib/ directory (looked in $_self_dir/lib and /usr/local/lib/zfsbay)" >&2
+    exit 1
+fi
+export ZFSBAY_LIB
+
+# shellcheck source=lib/common.sh
+source "$ZFSBAY_LIB/common.sh"
+# shellcheck source=lib/ui.sh
+source "$ZFSBAY_LIB/ui.sh"
+# shellcheck source=lib/perccli.sh
+source "$ZFSBAY_LIB/perccli.sh"
+# shellcheck source=lib/smartctl.sh
+source "$ZFSBAY_LIB/smartctl.sh"
+# shellcheck source=lib/zfs.sh
+source "$ZFSBAY_LIB/zfs.sh"
+# shellcheck source=lib/mapping.sh
+source "$ZFSBAY_LIB/mapping.sh"
+# shellcheck source=lib/workflows.sh
+source "$ZFSBAY_LIB/workflows.sh"
+
+# ---- arg parsing -----------------------------------------------------------
+
+usage() {
+    cat <<'EOF'
+zfsbay <subcommand> [args] [flags]
+
+Subcommands (คำสั่ง):
+  pool status [<name>]                ดูสถานะ ZFS pool ทั้งหมดหรือเฉพาะ pool
+  bay status [<N>]                    ดูตารางทุก bay หรือรายละเอียด bay เดียว
+  bay <N> remove                      เตรียมถอดดิสก์ (offline+locate+spindown)
+  bay <N> replace                     หลังเสียบดิสก์ใหม่: import + zpool replace
+  bay <N> join pool <pool> [as <m>]   เพิ่มดิสก์ใหม่เข้า pool (mirror/spare/replace)
+  check sync [bay <N>]                ดูความคืบหน้า resilver
+  locate <N> [on|off]                 เปิด/ปิดไฟ LED (ค่าเริ่มต้น on)
+  version                             พิมพ์เวอร์ชัน
+  help [<subcommand>]                 ช่วยเหลือ
+
+Global flags:
+  --json              machine-readable JSON output
+  -y, --yes           skip confirmation prompts
+  --dry-run           print commands, do not execute
+  --no-color          disable ANSI colors
+  -v, --verbose       echo external commands as they run
+  -q, --quiet         only errors
+  --controller N      PERC controller index (default 0)
+  --enclosure N       enclosure id (default: autodetect)
+  --refresh           bypass in-memory cache
+  --config <path>     alternate config file
+  --force             override safety guards (use with care)
+  --force-boot        permit operating on rpool/boot disk
+  --clear-foreign     auto-clear PERC foreign config
+  --delete-vd         on remove, also delete the single-disk RAID0 VD
+EOF
+}
+
+show_help_for() {
+    case "${1:-}" in
+        bay)
+            cat <<'EOF'
+zfsbay bay status [<N>]
+zfsbay bay <N> remove [--force] [--delete-vd]
+zfsbay bay <N> replace [--clear-foreign] [--force]
+zfsbay bay <N> join pool <poolname> [as <mode>]
+zfsbay locate <N> [on|off]
+
+mode:
+  mirror=<existing-device-or-vdev>    attach to mirror
+  spare                               add as pool-wide spare
+  replace=<faulted-device-id>         in-place replace
+EOF
+            ;;
+        pool)  echo "zfsbay pool status [<name>]" ;;
+        check) echo "zfsbay check sync [bay <N>]" ;;
+        *)     usage ;;
+    esac
+}
+
+# global state populated by parse_global_flags
+declare -gA ZB_FLAGS=(
+    [json]=0 [yes]=0 [dry_run]=0 [no_color]=0 [verbose]=0 [quiet]=0
+    [refresh]=0 [force]=0 [force_boot]=0 [clear_foreign]=0 [delete_vd]=0
+)
+declare -ga ZB_POSITIONAL=()
+# These globals are consumed inside lib/common.sh::apply_flag_state and the
+# workflow modules; shellcheck doesn't see across the source boundary on the
+# `--controller=*` form, so silence the false positive.
+# shellcheck disable=SC2034
+ZB_CONTROLLER=""
+# shellcheck disable=SC2034
+ZB_ENCLOSURE=""
+ZB_CONFIG=""
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)          ZB_FLAGS[json]=1 ;;
+            -y|--yes)        ZB_FLAGS[yes]=1 ;;
+            --dry-run)       ZB_FLAGS[dry_run]=1 ;;
+            --no-color)      ZB_FLAGS[no_color]=1 ;;
+            -v|--verbose)    ZB_FLAGS[verbose]=1 ;;
+            -q|--quiet)      ZB_FLAGS[quiet]=1 ;;
+            --refresh)       ZB_FLAGS[refresh]=1 ;;
+            --force)         ZB_FLAGS[force]=1 ;;
+            --force-boot)    ZB_FLAGS[force_boot]=1 ;;
+            --clear-foreign) ZB_FLAGS[clear_foreign]=1 ;;
+            --delete-vd)     ZB_FLAGS[delete_vd]=1 ;;
+            --controller)    ZB_CONTROLLER="${2:?--controller needs value}"; shift ;;
+            --controller=*)  ZB_CONTROLLER="${1#*=}" ;;
+            --enclosure)     ZB_ENCLOSURE="${2:?--enclosure needs value}"; shift ;;
+            --enclosure=*)   ZB_ENCLOSURE="${1#*=}" ;;
+            --config)        ZB_CONFIG="${2:?--config needs value}"; shift ;;
+            --config=*)      ZB_CONFIG="${1#*=}" ;;
+            --)              shift; while [[ $# -gt 0 ]]; do ZB_POSITIONAL+=("$1"); shift; done; return ;;
+            -h|--help)       usage; exit 0 ;;
+            -*)              die 2 "unknown flag: $1" ;;
+            *)               ZB_POSITIONAL+=("$1") ;;
+        esac
+        shift
+    done
+}
+
+main() {
+    parse_args "$@"
+    apply_flag_state
+    load_config "$ZB_CONFIG"
+
+    local sub="${ZB_POSITIONAL[0]:-help}"
+
+    case "$sub" in
+        version|--version)
+            if [[ "${ZB_FLAGS[json]}" = "1" ]]; then
+                printf '{"name":"zfsbay","version":"%s"}\n' "$ZFSBAY_VERSION"
+            else
+                printf 'zfsbay %s\n' "$ZFSBAY_VERSION"
+            fi
+            ;;
+        help|-h|--help)
+            show_help_for "${ZB_POSITIONAL[1]:-}"
+            ;;
+        pool)
+            local action="${ZB_POSITIONAL[1]:-status}"
+            case "$action" in
+                status) cmd_pool_status "${ZB_POSITIONAL[2]:-}" ;;
+                *)      die 2 "unknown 'pool' action: $action" ;;
+            esac
+            ;;
+        bay)
+            handle_bay_subcommand "${ZB_POSITIONAL[@]:1}"
+            ;;
+        check)
+            local action="${ZB_POSITIONAL[1]:-}"
+            case "$action" in
+                sync)
+                    local bay=""
+                    if [[ "${ZB_POSITIONAL[2]:-}" == "bay" ]]; then
+                        bay="${ZB_POSITIONAL[3]:-}"
+                    fi
+                    cmd_check_sync "$bay"
+                    ;;
+                *) die 2 "unknown 'check' action: $action" ;;
+            esac
+            ;;
+        locate)
+            local n="${ZB_POSITIONAL[1]:-}"
+            local on_off="${ZB_POSITIONAL[2]:-on}"
+            cmd_locate "$n" "$on_off"
+            ;;
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+}
+
+handle_bay_subcommand() {
+    local first="${1:-}"
+    if [[ -z "$first" ]]; then usage; exit 2; fi
+
+    if [[ "$first" == "status" ]]; then
+        cmd_bay_status "${2:-}"
+        return
+    fi
+
+    # bay <N> <verb>
+    local n="$first"
+    local verb="${2:-}"
+    case "$verb" in
+        remove)  cmd_bay_remove  "$n" ;;
+        replace) cmd_bay_replace "$n" ;;
+        join)
+            # bay <N> join pool <poolname> [as <mode>]
+            [[ "${3:-}" == "pool" ]] || die 2 "expected 'pool' after join"
+            local poolname="${4:?pool name required}"
+            local mode=""
+            if [[ "${5:-}" == "as" ]]; then mode="${6:-}"; fi
+            cmd_bay_join "$n" "$poolname" "$mode"
+            ;;
+        "")      die 2 "expected verb after 'bay $n'" ;;
+        *)       die 2 "unknown bay verb: $verb" ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,27 @@
+CLI Version = 007.2616.0000.0000 May 09, 2024
+Operating system = Linux 6.5.13-1-pve
+Controller = 0
+Status = Success
+Description = Show Drive Information Succeeded.
+
+Drive Information :
+=================
+
+----------------------------------------------------------------------------------
+EID:Slt DID State DG       Size Intf Med SED PI SeSz Model              Sp Type
+----------------------------------------------------------------------------------
+32:0      7 Onln   0 446.625 GB SATA SSD N   N  512B INTEL SSDSC2BB480H4 U   -
+32:1      8 Onln   0 446.625 GB SATA SSD N   N  512B SAMSUNG MZ7L3480HCHQ U  -
+32:2      9 UGood  - 446.625 GB SATA SSD N   N  512B INTEL SSDSC2BB480H4 U   -
+32:3     10 UBad   -   3.637 TB SAS  HDD N   N  512B ST4000NM0023        D   -
+32:4     11 Onln   1   3.637 TB SAS  HDD N   N  512B ST4000NM0023        U   -
+----------------------------------------------------------------------------------
+
+EID-Enclosure Device ID|Slt-Slot No|DID-Device ID|DG-DriveGroup
+DHS-Dedicated Hot Spare|UGood-Unconfigured Good|GHS-Global Hotspare
+UBad-Unconfigured Bad|Sntze-Sanitize|Onln-Online|Offln-Offline|Intf-Interface
+Med-Media Type|SED-Self Encryptive Drive|PI-Protection Info
+SeSz-Sector Size|Sp-Spun|U-Up|D-Down|T-Transition|F-Foreign
+UGUnsp-UGood Unsupported|UGShld-UGood shielded|HSPShld-Hotspare shielded
+CFShld-Configured shielded|Cpybck-CopyBack|CBShld-Copyback Shielded
+UBUnsp-UBad Unsupported|Rbld-Rebuild

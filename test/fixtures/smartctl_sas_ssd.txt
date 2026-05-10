@@ -1,0 +1,44 @@
+smartctl 7.3 2022-02-28 r5338 [x86_64-linux-6.5.13-1-pve] (local build)
+Copyright (C) 2002-22, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+Vendor:                 HGST
+Product:                HUSMM1640ASS200
+Revision:               A340
+Compliance:             SPC-4
+User Capacity:          400,088,457,216 bytes [400 GB]
+Logical block size:     512 bytes
+Rotation Rate:          Solid State Device
+Form Factor:            2.5 inches
+Serial number:          0BCD0001
+Device type:            disk
+Transport protocol:     SAS (SPL-3)
+Local Time is:          Mon May 10 03:15:00 2026 UTC
+SMART support is:       Available - device has SMART capability.
+SMART support is:       Enabled
+Temperature Warning:    Enabled
+
+=== START OF READ SMART DATA SECTION ===
+SMART Health Status: OK
+
+Percentage used endurance indicator: 12%
+Current Drive Temperature:     34 C
+Drive Trip Temperature:        65 C
+
+Manufactured in week 14 of year 2018
+Specified cycle count over device lifetime:  10000
+Accumulated start-stop cycles:  100
+Specified load-unload count over device lifetime:  300000
+Accumulated load-unload cycles:  103
+Elements in grown defect list: 0
+
+Vendor (Seagate Cache) information
+  Blocks sent to initiator = 0
+  Blocks received from initiator = 0
+  Blocks read from cache and sent to initiator = 0
+  Number of read and write commands whose size <= segment size = 0
+  Number of read and write commands whose size > segment size = 0
+
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 9876.30
+  number of minutes until next internal SMART test = 7

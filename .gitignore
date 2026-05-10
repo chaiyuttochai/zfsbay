@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# editor swap files
+*.bak
+*.swp
+*~
+
+# build / runtime
+*.log

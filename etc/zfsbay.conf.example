@@ -1,0 +1,31 @@
+# /etc/zfsbay.conf — runtime configuration for zfsbay
+# Sourced as bash. All values can be overridden by env vars or CLI flags.
+
+# Path to perccli64 (or storcli64). Leave blank to autodetect.
+PERCCLI="/opt/MegaRAID/perccli/perccli64"
+
+# Default PERC controller index (most boxes have just 0).
+DEFAULT_CONTROLLER=0
+
+# Default enclosure id. Blank = autodetect (works when there is exactly one
+# non-empty enclosure on the chosen controller, e.g. the chassis backplane).
+DEFAULT_ENCLOSURE=
+
+# Audit log. Every external command and major action is appended here.
+LOG_FILE="/var/log/zfsbay.log"
+
+# Color thresholds (percentages).
+COLOR_HEALTH_GREEN_MIN=80
+COLOR_HEALTH_YELLOW_MIN=50
+COLOR_ENDURANCE_GREEN_MIN=80
+COLOR_ENDURANCE_YELLOW_MIN=50
+
+# Preferred /dev/disk/by-id/* form when adding a drive back to ZFS.
+#   auto         — keep whatever the pool already uses
+#   wwn          — force /dev/disk/by-id/wwn-0x*
+#   by-id-ata    — force /dev/disk/by-id/ata-*
+#   by-id-scsi   — force /dev/disk/by-id/scsi-*
+PREFER_ZFS_PATH_FORM="auto"
+
+# Set to 1 to make every state-changing command default to dry-run mode.
+DRY_RUN_DEFAULT=0
