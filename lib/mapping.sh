@@ -80,7 +80,12 @@ maps_load_devices() {
         done
     fi
 
-    # Build serial table via udevadm (best effort).
+    # Build serial table via udevadm (best effort). For SAS drives udev's
+    # ID_SERIAL_SHORT is the WWN suffix, NOT the product serial — so we
+    # register every serial-ish field and let lookups by either form succeed.
+    # Also fuzz the WWN last hex digit because dual-port SAS drives report
+    # different WWNs to each port (PERC sees port A "...0", kernel often
+    # sees port B "...1", same drive).
     if command -v udevadm >/dev/null 2>&1; then
         local d
         for d in /dev/sd?* /dev/nvme?n? ; do
@@ -88,15 +93,28 @@ maps_load_devices() {
             # skip partitions
             if [[ "$d" =~ ^/dev/sd[a-z]+[0-9]+$ ]]; then continue; fi
             if [[ "$d" =~ ^/dev/nvme[0-9]+n[0-9]+p[0-9]+$ ]]; then continue; fi
-            local props serial wwn
+            local props serial_short scsi_serial serial wwn
             props="$(udevadm info --query=property --name="$d" 2>/dev/null || true)"
-            serial="$(awk -F= '/^ID_SERIAL_SHORT=/ { print $2; exit }' <<< "$props")"
-            [[ -z "$serial" ]] && serial="$(awk -F= '/^ID_SCSI_SERIAL=/ { print $2; exit }' <<< "$props")"
-            [[ -z "$serial" ]] && serial="$(awk -F= '/^ID_SERIAL=/ { print $2; exit }' <<< "$props")"
-            wwn="$(awk -F= '/^ID_WWN=/ { print $2; exit }' <<< "$props")"
+            serial="$(      awk -F= '/^ID_SERIAL=/        { print $2; exit }' <<< "$props")"
+            serial_short="$(awk -F= '/^ID_SERIAL_SHORT=/  { print $2; exit }' <<< "$props")"
+            scsi_serial="$( awk -F= '/^ID_SCSI_SERIAL=/   { print $2; exit }' <<< "$props")"
+            wwn="$(         awk -F= '/^ID_WWN=/           { print $2; exit }' <<< "$props")"
             wwn="${wwn#0x}"
-            [[ -n "$serial" ]] && DEV_BY_SERIAL[$serial]="$d"
-            [[ -n "$wwn"    ]] && DEV_BY_WWN[${wwn,,}]="$d"
+            [[ -n "$serial"       ]] && DEV_BY_SERIAL[$serial]="$d"
+            [[ -n "$serial_short" ]] && DEV_BY_SERIAL[$serial_short]="$d"
+            [[ -n "$scsi_serial"  ]] && DEV_BY_SERIAL[$scsi_serial]="$d"
+            if [[ -n "$wwn" ]]; then
+                local w_lc="${wwn,,}"
+                DEV_BY_WWN[$w_lc]="$d"
+                # SAS dual-port WWN sibling: flip the last hex digit so a
+                # PERC-side WWN whose port differs by 1 still hits this row.
+                if [[ "$w_lc" =~ ^([0-9a-f]+)([0-9a-f])$ ]]; then
+                    local prefix="${BASH_REMATCH[1]}" last="${BASH_REMATCH[2]}"
+                    local sibling
+                    printf -v sibling '%s%x' "$prefix" $(( 0x$last ^ 1 ))
+                    [[ -z "${DEV_BY_WWN[$sibling]:-}" ]] && DEV_BY_WWN[$sibling]="$d"
+                fi
+            fi
         done
     fi
 }
